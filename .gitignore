@@ -163,3 +163,4 @@ cython_debug/
 .idea
 ckpt_downloaded
 prot2token/__pycache__
+prot2token/ckpt/stability/best_valid_stability_spearman.pth
