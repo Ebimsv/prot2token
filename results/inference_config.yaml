@@ -1,0 +1,18 @@
+checkpoint_path: prot2token/ckpt/stability/checkpoints/best_valid_stability_spearman.pth
+result_config_path: prot2token/results/inference_config.yaml
+decoder_tokenizer_path: prot2token/ckpt/stability/decoder_tokenizer.yaml
+result_path: prot2token/results/
+data_path: prot2token/data/inference_datasets/stability_inference.csv
+
+compile_model: False
+tqdm_progress_bar: True
+fix_seed: 0
+batch_size: 1
+num_workers: 0
+merging_character: ""
+inference_type: inference_beam_search # inference_beam_search, inference_greedy
+
+beam_search:
+  top_k: 3
+  beam_width: 3
+  temperature: 1.0
