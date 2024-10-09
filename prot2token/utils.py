@@ -2,80 +2,9 @@ import os
 import yaml
 import torch
 from box import Box
-
-
-def prepare_config_and_checkpoint(name):
-    """
-    Prepare the configuration dictionary, the checkpoint file path for the model with the given name.
-
-    Args:
-        name (str): The name of the model.
-
-    Returns:
-        configs: The configuration in a box object.
-        checkpoint_path: The file path to the checkpoint file.
-        decoder_tokenizer_dict: The dictionary containing the decoder tokenizer.
-    """
-    from huggingface_hub import hf_hub_download
-    if name == 'stability':
-        checkpoint_path = hf_hub_download(
-            repo_id="Mahdip72/prot2token",
-            filename="stability/2024-07-05__17-35-31/checkpoints/best_valid_stability_spearman.pth"
-        )
-        decoder_tokenizer_path = hf_hub_download(
-            repo_id="Mahdip72/prot2token",
-            filename="stability/2024-07-05__17-35-31/decoder_tokenizer.yaml"
-        )
-        config_file_path = hf_hub_download(
-            repo_id="Mahdip72/prot2token",
-            filename="stability/2024-07-05__17-35-31/config.yaml"
-        )
-    elif name == 'fluorescence':
-        checkpoint_path = hf_hub_download(
-            repo_id="Mahdip72/prot2token",
-            filename="fluorescence/2024-04-23__18-20-05/checkpoints/best_valid_fluorescence_spearman.pth"
-        )
-        decoder_tokenizer_path = hf_hub_download(
-            repo_id="Mahdip72/prot2token",
-            filename="fluorescence/2024-04-23__18-20-05/decoder_tokenizer.yaml"
-        )
-        config_file_path = hf_hub_download(
-            repo_id="Mahdip72/prot2token",
-            filename="fluorescence/2024-04-23__18-20-05/config.yaml"
-        )
-
-    else:
-        raise ValueError(f"Model with name '{name}' is not supported.")
-
-    # Load the configuration file
-    with open(config_file_path) as file:
-        dict_config = yaml.full_load(file)
-
-    configs = load_configs(dict_config)
-
-    with open(decoder_tokenizer_path) as file:
-        decoder_tokenizer_dict = yaml.full_load(file)
-
-    return configs, checkpoint_path, decoder_tokenizer_dict
-
-
-def remove_prefix_from_keys(dictionary, prefix):
-    new_dict = {}
-    for key, value in dictionary.items():
-        if key.startswith(prefix):
-            new_key = key[len(prefix):]
-            new_dict[new_key] = value
-        else:
-            new_dict[key] = value
-    return new_dict
-
-
-def add_prefix_to_keys(dictionary, prefix):
-    new_dict = {}
-    for key, value in dictionary.items():
-        new_key = prefix + key  # Concatenate the prefix and the original key
-        new_dict[new_key] = value  # Store the value with the new key in the new dictionary
-    return new_dict
+from huggingface_hub import hf_hub_url
+import requests
+from tqdm import tqdm
 
 
 def load_configs(config, inference=False):
@@ -100,6 +29,119 @@ def load_configs(config, inference=False):
         tree_config.optimizer.weight_decay = float(tree_config.optimizer.weight_decay)
         tree_config.optimizer.eps = float(tree_config.optimizer.eps)
     return tree_config
+
+
+def download_file_with_progress(repo_id, filename, desc, subfolder):
+    """
+    Helper function to download a file from Huggingface with a progress bar.
+
+    Args:
+        repo_id (str): The Huggingface repository ID.
+        filename (str): The file path in the repository.
+        desc (str): Description for the progress bar.
+        subfolder (str): Subfolder to save the file in.
+
+    Returns:
+        local_path (str): The local file path where the file is saved.
+    """
+    file_url = hf_hub_url(repo_id=repo_id, filename=filename)
+    # Create path for the subfolder
+    model_dir = os.path.join("ckpt", subfolder)
+    os.makedirs(model_dir, exist_ok=True)
+    # Save the file in the subfolder
+    local_path = os.path.join(model_dir, os.path.basename(filename))
+
+    # Check if file already exists
+    if not os.path.exists(local_path):
+        # Perform the download with progress tracking
+        with requests.get(file_url, stream=True) as r:
+            r.raise_for_status()
+            total_size = int(r.headers.get('content-length', 0))
+            chunk_size = 1024  # 1 KB chunks
+
+            with open(local_path, 'wb') as f, tqdm(
+                total=total_size, unit='iB', unit_scale=True, desc=desc
+            ) as bar:
+                for chunk in r.iter_content(chunk_size=chunk_size):
+                    f.write(chunk)
+                    bar.update(len(chunk))
+
+        print(f"File downloaded to {local_path}")
+    else:
+        print(f"File already exists at {local_path}")
+    return local_path
+
+def prepare_config_and_checkpoint(name):
+    """
+    Prepare the configuration dictionary, checkpoint file path, and decoder tokenizer for a model.
+
+    Args:
+        name (str): The name of the model ('stability' or 'fluorescence').
+
+    Returns:
+        configs: The configuration loaded as a dictionary.
+        checkpoint_path: The file path to the checkpoint file.
+        decoder_tokenizer_dict: The dictionary containing the decoder tokenizer.
+    """
+    repo_id = "Mahdip72/prot2token"
+    file_paths = {
+        'stability': {
+            'decoder_tokenizer': "stability/2024-07-05__17-35-31/decoder_tokenizer.yaml",
+            'checkpoint': "stability/2024-07-05__17-35-31/checkpoints/best_valid_stability_spearman.pth",
+            'config': "stability/2024-07-05__17-35-31/config.yaml"
+        },
+        'fluorescence': {
+            'decoder_tokenizer': "fluorescence/2024-04-23__18-20-05/decoder_tokenizer.yaml",
+            'checkpoint': "fluorescence/2024-04-23__18-20-05/checkpoints/best_valid_fluorescence_spearman.pth",
+            'config': "fluorescence/2024-04-23__18-20-05/config.yaml"
+        }
+    }
+
+    if name not in file_paths:
+        raise ValueError(f"Model with name '{name}' is not supported.")
+
+    decoder_tokenizer_path = download_file_with_progress(
+        repo_id, file_paths[name]['decoder_tokenizer'],
+        f"Downloading {name} decoder tokenizer", name
+    )
+    checkpoint_path = download_file_with_progress(
+        repo_id, file_paths[name]['checkpoint'],
+        f"Downloading {name} checkpoint", name
+    )
+    config_file_path = download_file_with_progress(
+        repo_id, file_paths[name]['config'],
+        f"Downloading {name} config", name
+    )
+
+    # Load the configuration file
+    with open(config_file_path, 'r') as file:
+        dict_config = yaml.full_load(file)
+
+    configs = load_configs(dict_config)
+
+    # Load the decoder tokenizer dictionary
+    with open(decoder_tokenizer_path, 'r') as file:
+        decoder_tokenizer_dict = yaml.full_load(file)
+    return configs, checkpoint_path, decoder_tokenizer_dict
+
+
+def remove_prefix_from_keys(dictionary, prefix):
+    new_dict = {}
+    for key, value in dictionary.items():
+        if key.startswith(prefix):
+            new_key = key[len(prefix):]
+            new_dict[new_key] = value
+        else:
+            new_dict[key] = value
+    return new_dict
+
+
+def add_prefix_to_keys(dictionary, prefix):
+    new_dict = {}
+    for key, value in dictionary.items():
+        new_key = prefix + key  # Concatenate the prefix and the original key
+        new_dict[new_key] = value  # Store the value with the new key in the new dictionary
+    return new_dict
 
 
 def load_checkpoints_inference(checkpoint_path, net):
@@ -129,9 +171,7 @@ def load_checkpoints_inference(checkpoint_path, net):
     # Load state dict into the model
     load_log = net.load_state_dict(checkpoint['model_state_dict'], strict=True)
     print(f'Loading checkpoint log: {load_log}')
-
     return net
-
 
 
 class InferenceTokenizer:
