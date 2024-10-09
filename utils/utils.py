@@ -13,7 +13,6 @@ from pathlib import Path
 import datetime
 import random
 from accelerate import Accelerator
-from transformers import get_scheduler
 import pickle
 
 
