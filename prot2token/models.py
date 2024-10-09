@@ -5,7 +5,7 @@ from timm.models.layers import trunc_normal_
 from transformers import EsmModel
 from transformers import AutoTokenizer, AutoModel
 import torch.nn.functional as F
-from peft import LoraConfig, PeftConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from utils import prepare_config_and_checkpoint, load_checkpoints_inference
 from tqdm import tqdm
 
@@ -98,9 +98,11 @@ def create_mask(tgt, pad_idx, device):
 
 
 class ProteinEncoder(nn.Module):
-    def __init__(self, configs, encoder_tokenizer, model_name='facebook/esm2_t33_650M_UR50D', out_dim=256):
+    def __init__(self, configs, encoder_tokenizer, model_name='facebook/esm2_t30_150M_UR50D', out_dim=256):
         super().__init__()
         self.out_dim = out_dim
+        self.model_name = model_name
+
         if configs.prot2token_model.protein_encoder.quantization_4_bit:
             from transformers import BitsAndBytesConfig
             # QLoRa fine-tuning:
@@ -110,12 +112,10 @@ class ProteinEncoder(nn.Module):
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_compute_dtype=torch.float16,
             )
-            self.model = EsmModel.from_pretrained(model_name, quantization_config=quantization_config,
-                                                  load_in_4bit=True)
-            self.model = prepare_model_for_kbit_training(self.model,
-                                                         use_gradient_checkpointing=True)
+            self.model = EsmModel.from_pretrained(self.model_name, quantization_config=quantization_config)
+            self.model = prepare_model_for_kbit_training(self.model, use_gradient_checkpointing=True)
         else:
-            self.model = EsmModel.from_pretrained(model_name)
+            self.model = EsmModel.from_pretrained(self.model_name)
 
         if configs.prot2token_model.protein_encoder.lora.enable:
             config = LoraConfig(
@@ -576,11 +576,10 @@ def prepare_models(name, device, compile_model=False):
 
     # Prepare the protein encoder.
     protein_encoder = ProteinEncoder(
-        model_name=configs.prot2token_model.protein_encoder.model_name,
-        out_dim=configs.prot2token_model.decoder.dimension,
         configs=configs,
-        encoder_tokenizer=encoder_tokenizer
-    )
+        encoder_tokenizer=encoder_tokenizer,
+        model_name=configs.prot2token_model.protein_encoder.model_name,
+        out_dim=configs.prot2token_model.decoder.dimension)
 
     # freeze all parameters
     for param in protein_encoder.parameters():
