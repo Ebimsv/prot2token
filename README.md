@@ -140,7 +140,7 @@ input, task_name
 Then, run the following command:
 
 ```commandline
-accelerate launch inference.py --config_path configs/<inferenece_config_name>
+accelerate launch inference.py --config_path configs/<inference_config_name>
 ```
 
 After running the inference code, you can find the results in the `inference_results.csv` file in `result_path`
