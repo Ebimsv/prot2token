@@ -1,0 +1,17 @@
+.: 16
+'0': 6
+'1': 7
+'2': 8
+'3': 9
+'4': 10
+'5': 11
+'6': 12
+'7': 13
+'8': 14
+'9': 15
+<bos>: 1
+<eos>: 2
+<pad>: 0
+<sep>: 3
+<task_fluorescence>: 4
+<task_protein_ligand_affinity>: 5
