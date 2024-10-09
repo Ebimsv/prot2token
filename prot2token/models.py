@@ -752,7 +752,6 @@ def prepare_models(name, device, compile_model=False):
     # Prepare the protein encoder.
     protein_encoder = ProteinEncoder(
         configs=configs,
-        encoder_tokenizer=encoder_tokenizer,
         model_name=configs.prot2token_model.protein_encoder.model_name,
         out_dim=configs.prot2token_model.decoder.dimension,
     )
